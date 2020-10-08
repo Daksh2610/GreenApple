@@ -1,0 +1,78 @@
+#!/usr/bin/env node
+
+const fs = require('fs');
+const tildify = require('tildify');
+const gitClone = require('../lib/gitClone');
+
+const usage = () => {
+  console.log(`Usage: meta-project-import <destFolder> <childRepoUrl>
+  
+Configures .meta file and imports a project from provided 'childRepoUrl' using git clone into 'destFolder'.`);
+  process.exit(1);
+};
+
+const run = ({
+  process
+}) => {
+  const { argv } = process;
+  /^(-h||--help)$/.test(argv[2]) && usage();
+  
+  const destArg = argv[2] === 'blank' ? argv[3] : argv[2];
+  const repoUrl = argv[3] === 'blank' ? argv[4] : argv[3];
+  (destArg && repoUrl) || usage();
+  
+  const path = require('path');
+  const { green, gray, cyan, inverse } = require('chalk');
+  const getMetaFile = require('get-meta-file');
+  
+  // Load the ".meta" module.
+  const meta = getMetaFile();
+  if (!meta) process.exit(1);
+  
+  const metaPath = getMetaFile.getFileLocation();
+  const dest = path.relative(path.dirname(metaPath), path.resolve(destArg));
+  if (dest[0] === '.') {
+    console.error(`💥 Projects cannot be outside the meta repo: ${cyan(dest)}`); // prettier-ignore
+    process.exit(1);
+  }
+  
+  const destExists = fs.existsSync(dest);
+  if (destExists && !fs.statSync(dest).isDirectory()) {
+    console.log(`💥 '${dest}' exists and is not a directory`);
+    process.exit(1);
+  }
+  
+  const gitExists = destExists && fs.existsSync(path.join(dest, '.git'));
+  if (meta.projects[dest] === repoUrl && gitExists) {
+    console.log(`${green('✓')} A git repository already exists at this location. No changes required.`);
+    process.exit(0);
+  }
+
+  const cb = err => {
+    if (err) throw err;
+  
+    if (!(dest in meta.projects)) {
+      const gitIgnorePath = metaPath.replace(/.meta$/, '.gitignore');
+      console.log(`Appending to ${cyan(tildify(gitIgnorePath))}`);
+      fs.appendFileSync(gitIgnorePath, `/${dest}/\n`);
+    }
+  
+    console.log(`Updating "projects" in ${cyan(tildify(metaPath))}`); // prettier-ignore
+    if (!meta.projects) meta.projects = {};
+    meta.projects[dest] = repoUrl;
+    getMetaFile.save(meta);
+  
+    console.log(`\n${green('✓')} Project ${destExists ? 'already exists. No changes required.' : 'imported'}: ${green(dest)}`); // prettier-ignore
+  }
+  
+  gitClone({
+    cb,
+    repoUrl,
+    dest,
+    gitExists
+  });
+}
+
+run({
+  process
+})
