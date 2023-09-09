@@ -154,4 +154,4 @@ client.commands = new Enmap();
         });*/
 })
 ///////////////////////////////
-client.login("NzU4NTcwMDEyNTMyNDA4MzMw.X2w3YA.dvr0QxqNQcsq7tHD-4g5NRqFpaQ")
+client.login("Bot TOKEN")
